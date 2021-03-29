@@ -157,6 +157,8 @@ namespace ProxyCheckUtil
         /// (Default: 7)
         /// </summary>
         public int DayLimit { get; set; } = 7;
+        
+        public int? Risk { get; set; }
 
 
 
@@ -173,7 +175,7 @@ namespace ProxyCheckUtil
             if (ipAddress == null)
                 throw new ArgumentNullException(nameof(ipAddress));
 
-            if (!IPAddress.TryParse(ipAddress, out IPAddress ip))
+            if (!IPAddress.TryParse(ipAddress, out var ip))
                 throw new ArgumentException("Must be a valid IP", nameof(ipAddress));
 
             return await QueryAsync(ip, tag);
@@ -206,10 +208,10 @@ namespace ProxyCheckUtil
             if (ipAddresses.Length == 0)
                 throw new ArgumentException("Must have at least 1 IP address", nameof(ipAddresses));
 
-            List<IPAddress> ips = new List<IPAddress>(ipAddresses.Length);
+            var ips = new List<IPAddress>(ipAddresses.Length);
             foreach (var ipString in ipAddresses)
             {
-                if (!IPAddress.TryParse(ipString, out IPAddress ip))
+                if (!IPAddress.TryParse(ipString, out var ip))
                     throw new ArgumentException($"Invalid IP address provided. `{ipString}` is not a valid IP");
 
                 ips.Add(ip);
@@ -228,7 +230,7 @@ namespace ProxyCheckUtil
         public async Task<ProxyCheckResult> QueryAsync(IPAddress[] ipAddresses, string tag = "")
         {
             // We use this for if the cache is used and query is 100% cache hits
-            Stopwatch sw = new Stopwatch();
+            var sw = new Stopwatch();
             
             if (!ipAddresses.Any())
                 throw new ArgumentException("Must contain at least 1 IP Address", nameof(ipAddresses));
@@ -259,7 +261,7 @@ namespace ProxyCheckUtil
             if (ipAddresses.Length == 0 && ipResults != null) // All cache hits
             {
 
-                ProxyCheckResult result = new ProxyCheckResult
+                var result = new ProxyCheckResult
                 {
                     Results = new Dictionary<IPAddress, ProxyCheckResult.IpResult>(ipResults),
                     Status = StatusResult.OK,
@@ -285,25 +287,30 @@ namespace ProxyCheckUtil
                 .Append($"&seen={Convert.ToInt32(IncludeLastSeen)}")
                 .Append($"&days={Convert.ToInt32(DayLimit)}");
 
+            if (Risk.HasValue)
+            {
+                url = url.Append($"&risk={Risk.Value}");
+            }
+
             using (var client = new HttpClient())
             {
-                Dictionary<string, string> postData = new Dictionary<string, string>();
+                var postData = new Dictionary<string, string>();
 
-                string ipList = string.Join(",", ipAddresses.Select(c => c.ToString()));
+                var ipList = string.Join(",", ipAddresses.Select(c => c.ToString()));
                 postData.Add("ips", ipList);
 
                 if (!string.IsNullOrWhiteSpace(tag))
                     postData.Add("tag", tag);
 
-                FormUrlEncodedContent content = new FormUrlEncodedContent(postData);
+                var content = new FormUrlEncodedContent(postData);
 
                 try
                 {
                     var response = await client.PostAsync(url.ToString(), content);
 
-                    string json = await response.Content.ReadAsStringAsync();
+                    var json = await response.Content.ReadAsStringAsync();
 
-                    ProxyCheckResult result = ParseJson(json);
+                    var result = ParseJson(json);
 
                     // We want to update the cache now
                     CacheProvider?.SetCacheRecord(result.Results, _options);
@@ -345,9 +352,9 @@ namespace ProxyCheckUtil
         /// <returns>The parsed JSON</returns>
         private ProxyCheckResult ParseJson(string json)
         {
-            ProxyCheckResult res = new ProxyCheckResult();
+            var res = new ProxyCheckResult();
 
-            JObject obj = JObject.Parse(json);
+            var obj = JObject.Parse(json);
 
             foreach (var token in obj)
             {
@@ -366,20 +373,24 @@ namespace ProxyCheckUtil
                         break;
 
                     case "query time":
-                        double secs = Convert.ToDouble(((string) token.Value).Substring(0, ((string) token.Value).Length - 1));
-                        TimeSpan ts = TimeSpan.FromSeconds(secs);
+                        var secs = Convert.ToDouble(((string) token.Value).Substring(0, ((string) token.Value).Length - 1));
+                        var ts = TimeSpan.FromSeconds(secs);
                         res.QueryTime = ts;
                         break;
 
                     default:
-                        if (IPAddress.TryParse(token.Key, out IPAddress ip))
+                        if (IPAddress.TryParse(token.Key, out var ip))
                         {
-                            ProxyCheckResult.IpResult ipResult = new ProxyCheckResult.IpResult();
+                            var ipResult = new ProxyCheckResult.IpResult();
 
                             foreach (var innerToken in (JObject) token.Value)
                             {
                                 switch (innerToken.Key)
                                 {
+                                    case "risk":
+                                        ipResult.Risk = Convert.ToInt32(innerToken.Value);
+                                        break;
+                                    
                                     case "asn":
                                         ipResult.ASN = (string) innerToken.Value;
                                         break;
@@ -409,7 +420,7 @@ namespace ProxyCheckUtil
                                         break;
 
                                     case "proxy":
-                                        string isProxy = (string) innerToken.Value;
+                                        var isProxy = (string) innerToken.Value;
                                         ipResult.IsProxy = isProxy.Equals("yes", StringComparison.OrdinalIgnoreCase);
                                         break;
 
@@ -451,4 +462,3 @@ namespace ProxyCheckUtil
         }
     }
 }
-

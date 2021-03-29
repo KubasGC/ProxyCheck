@@ -67,7 +67,7 @@ namespace ProxyCheckUtil
             // We are not going to bother with removing existing exact matches as cleaning them upon a request/store will remove them.
             foreach (var item in results)
             {
-                CacheItem cItem = new CacheItem
+                var cItem = new CacheItem
                 {
                     IPAddress = item.Key,
                     Options = options,

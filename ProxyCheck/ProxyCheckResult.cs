@@ -125,6 +125,8 @@ namespace ProxyCheckUtil
             /// The last time the proxy server was seen in Unix time stamp
             /// </summary>
             public long? LastSeenUnix { get; set; }
+            
+            public int Risk { get; set; }
 
             /// <summary>
             /// The last time the proxy server was seen
